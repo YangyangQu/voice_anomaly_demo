@@ -53,10 +53,10 @@
         <div class="max-w-6xl mx-auto py-5 px-6 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 tracking-tight">
-                    语音转换模型评估 (FreeVC-Alpha)
+                Voice Anomaly 
                 </h1>
                 <p class="text-sm text-gray-500 mt-1">
-                    实时调节混合比例 (0.0 - 1.0) 并观测 WER/CER/EER 指标变化
+                    control (0.0 - 1.0) 
                 </p>
             </div>
             <div class="hidden md:block">
@@ -145,28 +145,58 @@
             {
                 id: 1,
                 title: "Sample 1: Male_to_Male",
-                prefix: "m_m", // ⚠️ 修改为你的实际路径
-                original: "assets/p226_003_original.wav"   // ⚠️ 你的原始音频路径
+                // ⚠️ 请去 m_m 文件夹里看一眼文件全名，把 _a0_00.wav 之前的部分填在这里
+                prefix: "m_m/p226_003__TO__p246_141", 
+                original: "original/p226_003.wav"
             },
             {
                 id: 2,
                 title: "Sample 2: Male_to_Female",
-                prefix: "m_f",
-                original: "assets/p226_003_original.wav"
+                // ⚠️ 去 m_f 文件夹确认文件名
+                prefix: "m_f/p226_003__TO__p264_243", 
+                original: "original/p226_003.wav"
             },
             {
                 id: 3,
                 title: "Sample 3: Female_to_Male",
-                prefix: "f_m",
-                original: "assets/p226_003_original.wav"
+                // ⚠️ 去 f_m 文件夹确认文件名
+                prefix: "f_m/p264_002__TO__p226_003", 
+                original: "original/p264_002.wav"
             },
             {
                 id: 4,
-                title: "Sample 4:  Female_to_Female",
-                prefix: "f_f",
-                original: "assets/p226_003_original.wav"
+                title: "Sample 4: Female_to_Female",
+                // ✅ 这个是根据你的截图 image_e0dd72.png 确认过的
+                prefix: "f_f/p264_002__TO__p301_346", 
+                original: "original/p264_002.wav"
             },
         ];
+        // const examples = [
+        //     {
+        //         id: 1,
+        //         title: "Sample 1: Male_to_Male",
+        //         prefix: "m_m/", // ⚠️ 修改为你的实际路径
+        //         original: "original/p226_003.wav"   // ⚠️ 你的原始音频路径
+        //     },
+        //     {
+        //         id: 2,
+        //         title: "Sample 2: Male_to_Female",
+        //         prefix: "m_f/",
+        //         original: "original/p226_003.wav"
+        //     },
+        //     {
+        //         id: 3,
+        //         title: "Sample 3: Female_to_Male",
+        //         prefix: "f_m/",
+        //         original: "original/p264_002.wav"
+        //     },
+        //     {
+        //         id: 4,
+        //         title: "Sample 4:  Female_to_Female",
+        //         prefix: "f_f/",
+        //         original: "original/p264_002.wav"
+        //     },
+        // ];
 
         // ==========================================
         // 3. 逻辑处理 (解析 CSV 和生成界面)
@@ -281,22 +311,36 @@
         // ==========================================
         // 4. 核心交互函数
         // ==========================================
-
         function getAudioPath(prefix, value) {
-            // value 是 "0.00", "0.02" ...
+            // value 是 "0.00", "0.02", "1.00" 等字符串
 
-            // ⚠️ 格式化策略：根据你的截图 `p226..._a0_00.wav`
-            // 这里我们需要确定 "0.02" 对应的文件名是 "02" 还是 "0.02"
-            // 通常情况如果是 "00", 那么 0.02 可能是 "0.02" 或者 "02"。
-            // 下面这个逻辑假设文件名包含小数点: p226..._a0_0.02.wav
-            // 如果你的文件名里没有小数点 (例如 a0_02.wav)，请取消注释下一行：
-            // let fileSuffix = value.replace('.', ''); // 变成 "002" 或者 "02"? 需要确认你的命名
-
-            // 暂时假设标准格式
-            let fileSuffix = value;
+            // 1. 解析为数字，乘以 100 (0.02 -> 2)
+            // 2. 取整并补零 (2 -> "02", 0 -> "00", 50 -> "50")
+            let fileSuffix = (parseFloat(value) * 100).toFixed(0).padStart(2, '0');
+            
+            // ⚠️ 特殊情况检查：
+            // 如果到了 1.00，上面会变成 "100"。
+            // 你需要确认你的最后一个文件是 `_a0_100.wav` 还是 `_a0_10.wav` 或者别的？
+            // 如果 1.00 对应的文件只是 `a0_1.wav` 或其他，这里需要单独写个 if 判断。
+            // 但对于 0.00 - 0.98，上面的逻辑生成的 "00" 到 "98" 是最符合你截图的。
 
             return `${prefix}_a0_${fileSuffix}.wav`;
         }
+        // function getAudioPath(prefix, value) {
+        //     // value 是 "0.00", "0.02" ...
+
+        //     // ⚠️ 格式化策略：根据你的截图 `p226..._a0_00.wav`
+        //     // 这里我们需要确定 "0.02" 对应的文件名是 "02" 还是 "0.02"
+        //     // 通常情况如果是 "00", 那么 0.02 可能是 "0.02" 或者 "02"。
+        //     // 下面这个逻辑假设文件名包含小数点: p226..._a0_0.02.wav
+        //     // 如果你的文件名里没有小数点 (例如 a0_02.wav)，请取消注释下一行：
+        //     // let fileSuffix = value.replace('.', ''); // 变成 "002" 或者 "02"? 需要确认你的命名
+
+        //     // 暂时假设标准格式
+        //     let fileSuffix = value;
+
+        //     return `${prefix}_a0_${fileSuffix}.wav`;
+        // }
 
         function updateCard(id, value, prefix) {
             // 1. 格式化数值 (确保是两位小数)
