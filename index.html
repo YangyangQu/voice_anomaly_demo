@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Conversion Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* 自定义滑块样式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #4F46E5;
+            cursor: pointer;
+            margin-top: -10px;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+            transition: transform 0.1s;
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #E5E7EB;
+            border-radius: 3px;
+        }
+
+        /* 音频播放器微调 */
+        audio {
+            width: 100%;
+            height: 40px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto py-5 px-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 tracking-tight">
+                    语音转换模型评估 (FreeVC-Alpha)
+                </h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    实时调节混合比例 (0.0 - 1.0) 并观测 WER/CER/EER 指标变化
+                </p>
+            </div>
+            <div class="hidden md:block">
+                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                    Step: 0.02
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto py-10 px-6 space-y-10" id="content-area">
+        <div class="text-center py-20 text-gray-400">正在加载数据...</div>
+    </main>
+
+    <footer class="max-w-6xl mx-auto py-8 text-center text-gray-400 text-sm border-t border-gray-200 mt-10">
+        &copy; 2025 Voice Conversion Analysis Tool.
+    </footer>
+
+    <script>
+        // ==========================================
+        // 1. CSV 数据配置 (核心区域)
+        // ==========================================
+
+        // ⚠️ 请将你的 .csv 文件内容完整复制到下面的反引号 `` 中间
+        // 我这里根据你的截图预填了 0.00 到 0.30 的数据作为演示
+        const csvRawContent = `alpha,SIM_orig,WER_orig,CER_orig,SIM_anon,WER_anon,CER_anon,EER_orig,EER_orig_anon
+0.00,1.0000000315904618,0.07597361582346103,0.044655803304070055,0.6490722903029786,0.10779175871332733,0.05902968726917552,0.11361797526478767,0.16033707559108734
+0.02,1.0000000315904618,0.07692599677584197,0.047248395896662645,0.6483121124986145,0.11466633622464374,0.0643796930466812,0.11361797526478767,0.15821348875761032
+0.04,1.0000000315904618,0.0756561555060007,0.044573498777321086,0.6478215316931407,0.10460409644439571,0.05830946594751492,0.11361797526478767,0.15552809089422226
+0.06,1.0000000315904618,0.07486250471234991,0.04309201729583959,0.6462479306012392,0.12843021262267906,0.08342895258450073,0.11361797526478767,0.15821348875761032
+0.08,1.0000000315904618,0.07978313963298483,0.05132246997073672,0.6439550109538767,0.10161768041231407,0.05862194523927206,0.11361797526478767,0.16033707559108734
+0.10,1.0000000315904618,0.07438631423615943,0.04354469219295894,0.6417936044103569,0.12078994504329901,0.0723817148251753,0.11361797526478767,0.16770786046981812
+0.12,1.0000000315904618,0.07422758407742928,0.04317432182258857,0.6415545386241542,0.10227670443305119,0.05898056334254817,0.11361797526478767,0.1655842661857605
+0.14,1.0000000315904618,0.07517996502981024,0.0436681489830824,0.6386316541996268,0.11235950309866718,0.07279072558481518,0.11361797526478767,0.16614606231451035
+0.16,1.0000000315904618,0.07883075868060388,0.05012905433287664,0.6352587507168452,0.1047996797568521,0.05786883039599671,0.11361797526478767,0.16614606231451035
+0.18,1.0000000315904618,0.07597361582346103,0.04572576215180668,0.6312765273369021,0.09989784429154915,0.05715878719520575,0.11361797526478767,0.16614606231451035
+0.20,1.0000000315904618,0.07470377455361975,0.04247473334522232,0.6288576609227392,0.10286236283114508,0.05614830919293357,0.11361797526478767,0.17564044892787933
+0.22,1.0000000315904618,0.07740218725203246,0.04831835474439927,0.6237267803814676,0.10348332326428301,0.05903854948824078,0.11361797526478767,0.17407865077257156
+0.24,1.0000000315904618,0.07486250471234991,0.04321547408596305,0.6202005988690589,0.10650514717671579,0.05936493468595524,0.11361797526478767,0.18569663166999817
+0.26,1.0000000315904618,0.07549742534727054,0.04440888972382314,0.6149752776076396,0.10150917455819417,0.058547095259651245,0.11361797526478767,0.1841348335146904
+0.28,1.0000000315904618,0.07438631423615943,0.04354469219295894,0.6091218254384068,0.10815554556860027,0.06373882818577353,0.11361797526478767,0.1957528069615364
+0.30,1.0000000315904618,0.07502123487108006,0.04407967161682726,0.6033353628963232,0.1062738125116866,0.06166935878511055,0.11361797526478767,0.1899438202381134
+0.32,1.0000000315904618,0.07819583804568325,0.04827720248102479,0.5958407543061508,0.11268765341985156,0.06580574585795702,0.11361797526478767,0.1957528069615364
+0.34,1.0000000315904618,0.07486250471234991,0.04354469219295894,0.5868410048302677,0.12694138249091808,0.07926529452357735,0.11361797526478767,0.20580898970365524
+0.36,1.0000000315904618,0.07581488566473085,0.04482041235756799,0.5772300666653448,0.10522260831703556,0.05849408881193454,0.11361797526478767,0.21161797642707825
+0.38,1.0000000315904618,0.0756561555060007,0.044738107830819024,0.5662313226362069,0.10611020334059551,0.06317741185190917,0.11361797526478767,0.2179887592792511
+0.40,1.0000000315904618,0.07629107614092134,0.046960330053041247,0.5546785709758599,0.11237219534278357,0.064417027883526,0.11361797526478767,0.2237977534532547
+0.42,1.0000000315904618,0.07486250471234991,0.044161976143576226,0.5382718547599183,0.11160424807199831,0.06290880573802898,0.11361797526478767,0.2402247190475464
+0.44,1.0000000315904618,0.07629107614092133,0.044161976143576226,0.5214794294867251,0.10359597697910392,0.060401894023324666,0.11361797526478767,0.2539663016796112
+0.46,1.0000000315904618,0.07517996502981024,0.043750453509831366,0.504245254273216,0.12926011916646593,0.07929795427432776,0.11361797526478767,0.2624606788158417
+0.48,1.0000000315904618,0.07486250471234991,0.04407967161682726,0.4828025884874579,0.12537215654811115,0.08222297981526458,0.11361797526478767,0.27564044296741486
+0.50,1.0000000315904618,0.07470377455361975,0.043462387666209974,0.46354848588713343,0.10864165885141118,0.06246111102209727,0.11361797526478767,0.29631461203098297
+0.52,1.0000000315904618,0.07517996502981023,0.044244280670325195,0.44491358049213886,0.11013993400629109,0.06420458574376421,0.11361797526478767,0.3179887533187866
+0.54,1.0000000315904618,0.07517996502981024,0.0439562148267038,0.42881233252171014,0.13182151845593537,0.0869175873510519,0.11361797526478767,0.33385393023490906
+0.56,1.0000000315904618,0.07502123487108006,0.043750453509831366,0.4119280022951878,0.1225007915869629,0.07203603114687347,0.11361797526478767,0.3423483222723007
+`;
+
+        // ==========================================
+        // 2. 音频文件配置
+        // ==========================================
+        // 这里列出你的5个例子。
+        // prefix: 文件名前半部分 (不包含 _a0_xx.wav 的部分)
+        const examples = [
+            {
+                id: 1,
+                title: "Sample 1: Male_to_Male",
+                prefix: "m_m", // ⚠️ 修改为你的实际路径
+                original: "assets/p226_003_original.wav"   // ⚠️ 你的原始音频路径
+            },
+            {
+                id: 2,
+                title: "Sample 2: Male_to_Female",
+                prefix: "m_f",
+                original: "assets/p226_003_original.wav"
+            },
+            {
+                id: 3,
+                title: "Sample 3: Female_to_Male",
+                prefix: "f_m",
+                original: "assets/p226_003_original.wav"
+            },
+            {
+                id: 4,
+                title: "Sample 4:  Female_to_Female",
+                prefix: "f_f",
+                original: "assets/p226_003_original.wav"
+            },
+        ];
+
+        // ==========================================
+        // 3. 逻辑处理 (解析 CSV 和生成界面)
+        // ==========================================
+
+        // 解析 CSV 字符串为 JSON 对象
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = {};
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                if (values.length < headers.length) continue;
+
+                // 找到 alpha 列的索引
+                const alphaIndex = headers.indexOf('alpha');
+                // 格式化 alpha key (确保是 "0.00", "0.20" 这种两位小数格式)
+                let alphaKey = parseFloat(values[alphaIndex]).toFixed(2);
+
+                // 提取需要的指标
+                data[alphaKey] = {
+                    wer: (parseFloat(values[headers.indexOf('WER_anon')]) * 100).toFixed(2) + '%', // 转百分比
+                    cer: (parseFloat(values[headers.indexOf('CER_anon')]) * 100).toFixed(2) + '%',
+                    eer: (parseFloat(values[headers.indexOf('EER_orig_anon')]) * 100).toFixed(2) + '%'
+                };
+            }
+            return data;
+        }
+
+        const metricsData = parseCSV(csvRawContent);
+        const container = document.getElementById('content-area');
+
+        // 初始化渲染
+        container.innerHTML = '';
+        examples.forEach(ex => {
+            const card = document.createElement('div');
+            card.className = "bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden";
+
+            // 默认值
+            const defaultAlpha = "0.00";
+            const metrics = metricsData[defaultAlpha] || { wer: "-", cer: "-", eer: "-" };
+
+            // ⚠️ 关键逻辑：文件名拼接
+            // 如果你的文件是 p226..._a0_00.wav (没有小数点)
+            // 请使用这个逻辑: const filename = `${ex.prefix}_a0_${defaultAlpha.replace('.', '')}.wav`;
+
+            // 如果你的文件是 p226..._a0_0.00.wav (有小数点)
+            // 请使用这个逻辑: const filename = `${ex.prefix}_a0_${defaultAlpha}.wav`;
+
+            // 根据你的截图 (a0_00.wav)，我推测是没有小数点的，所以我这里写一个特殊的格式化函数
+            // 如果文件名其实是 0.00，请自行调整
+            const initialSrc = getAudioPath(ex.prefix, defaultAlpha);
+
+            card.innerHTML = `
+                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                        <span class="w-2 h-6 bg-indigo-500 rounded-sm"></span>
+                        ${ex.title}
+                    </h2>
+                    <span class="text-xs font-mono bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">ID: ${ex.id}</span>
+                </div>
+
+                <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+
+                    <div class="lg:col-span-3 flex flex-col items-center gap-2">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Original</span>
+                        <audio controls src="${ex.original}" class="rounded-lg bg-gray-100"></audio>
+                    </div>
+
+                    <div class="lg:col-span-6 flex flex-col gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                         <div class="flex justify-between items-end mb-1">
+                            <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Converted (Alpha Control)</span>
+                            <div class="font-mono text-xl font-bold text-indigo-600" id="val-${ex.id}">${defaultAlpha}</div>
+                        </div>
+
+                        <audio id="audio-${ex.id}" controls src="${initialSrc}" class="rounded-lg shadow-sm"></audio>
+
+                        <div class="relative pt-2">
+                            <input type="range" min="0" max="1" step="0.02" value="0"
+                                class="w-full relative z-10"
+                                oninput="updateCard(${ex.id}, this.value, '${ex.prefix}')">
+                            <div class="flex justify-between text-[10px] text-gray-400 font-mono mt-2 px-1">
+                                <span>0.00</span>
+                                <span>0.50</span>
+                                <span>1.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-3">
+                        <div class="grid grid-cols-1 gap-3">
+                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center">
+                                <span class="text-xs text-gray-500 font-semibold">WER</span>
+                                <span class="font-mono text-sm font-bold text-gray-800" id="wer-${ex.id}">${metrics.wer}</span>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center">
+                                <span class="text-xs text-gray-500 font-semibold">CER</span>
+                                <span class="font-mono text-sm font-bold text-gray-800" id="cer-${ex.id}">${metrics.cer}</span>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center">
+                                <span class="text-xs text-gray-500 font-semibold">EER</span>
+                                <span class="font-mono text-sm font-bold text-gray-800" id="eer-${ex.id}">${metrics.eer}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        // ==========================================
+        // 4. 核心交互函数
+        // ==========================================
+
+        function getAudioPath(prefix, value) {
+            // value 是 "0.00", "0.02" ...
+
+            // ⚠️ 格式化策略：根据你的截图 `p226..._a0_00.wav`
+            // 这里我们需要确定 "0.02" 对应的文件名是 "02" 还是 "0.02"
+            // 通常情况如果是 "00", 那么 0.02 可能是 "0.02" 或者 "02"。
+            // 下面这个逻辑假设文件名包含小数点: p226..._a0_0.02.wav
+            // 如果你的文件名里没有小数点 (例如 a0_02.wav)，请取消注释下一行：
+            // let fileSuffix = value.replace('.', ''); // 变成 "002" 或者 "02"? 需要确认你的命名
+
+            // 暂时假设标准格式
+            let fileSuffix = value;
+
+            return `${prefix}_a0_${fileSuffix}.wav`;
+        }
+
+        function updateCard(id, value, prefix) {
+            // 1. 格式化数值 (确保是两位小数)
+            const formattedVal = parseFloat(value).toFixed(2);
+
+            // 2. 更新显示的 Alpha 值
+            document.getElementById(`val-${id}`).innerText = formattedVal;
+
+            // 3. 更新音频
+            const audioEl = document.getElementById(`audio-${id}`);
+            const newSrc = getAudioPath(prefix, formattedVal);
+
+            // 避免重复加载
+            // 获取当前src的文件名部分进行比对
+            if (!audioEl.src.endsWith(newSrc.split('/').pop())) {
+                const isPlaying = !audioEl.paused;
+                const currentTime = audioEl.currentTime;
+
+                audioEl.src = newSrc;
+
+                if (isPlaying) {
+                    audioEl.load();
+                    audioEl.currentTime = currentTime;
+                    audioEl.play().catch(e => {});
+                }
+            }
+
+            // 4. 更新指标数据 (从 CSV 解析结果中查表)
+            const metrics = metricsData[formattedVal];
+            if (metrics) {
+                document.getElementById(`wer-${id}`).innerText = metrics.wer;
+                document.getElementById(`cer-${id}`).innerText = metrics.cer;
+                document.getElementById(`eer-${id}`).innerText = metrics.eer;
+            } else {
+                // 如果 CSV 里没有这个值 (比如 CSV 不完整)
+                document.getElementById(`wer-${id}`).innerText = "-";
+                document.getElementById(`cer-${id}`).innerText = "-";
+                document.getElementById(`eer-${id}`).innerText = "-";
+            }
+        }
+    </script>
+</body>
+</html>
